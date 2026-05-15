@@ -1,8 +1,8 @@
 use crate::analyzer::ContributorStats;
 use std::io::{self, Write};
 
-use super::common::{format_ratio_bar, RatioBarColor, WHO_BAR_WIDTH};
-use super::style::{bold, ColorOutput};
+use super::common::{RatioBarColor, WHO_BAR_WIDTH, format_ratio_bar};
+use super::style::{ColorOutput, bold};
 
 /// Input for rendering the `who` command.
 pub struct WhoReport<'a> {
@@ -70,7 +70,7 @@ pub fn print_who(report: &WhoReport) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::render::common::{format_ratio_bar, RatioBarColor};
+    use crate::render::common::{RatioBarColor, format_ratio_bar};
     use crate::render::style::ColorOutput;
 
     fn strip_ansi(s: &str) -> String {

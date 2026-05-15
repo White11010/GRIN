@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            pkg: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            pkg: zip
+          - os: macos-13
+            target: x86_64-apple-darwin
+            pkg: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            pkg: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --locked --release --target ${{ matrix.target }}
+
+      - name: Package (Unix)
+        if: matrix.pkg == 'tar.gz'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          out="grin-${tag}-${{ matrix.target }}.tar.gz"
+          strip="target/${{ matrix.target }}/release/grin"
+          if command -v strip >/dev/null 2>&1; then
+            strip "$strip" || true
+          fi
+          tar -czvf "$out" -C "target/${{ matrix.target }}/release" grin
+
+      - name: Package (Windows)
+        if: matrix.pkg == 'zip'
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $out = "grin-$tag-${{ matrix.target }}.zip"
+          Compress-Archive -Force -Path "target/${{ matrix.target }}/release/grin.exe" -DestinationPath $out
+
+      - name: Upload packaged artifact (Unix)
+        if: matrix.pkg == 'tar.gz'
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-${{ matrix.target }}
+          path: grin-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+      - name: Upload packaged artifact (Windows)
+        if: matrix.pkg == 'zip'
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-${{ matrix.target }}
+          path: grin-${{ github.ref_name }}-${{ matrix.target }}.zip
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all release packages
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: asset-*
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

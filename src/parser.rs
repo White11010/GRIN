@@ -1,5 +1,7 @@
 #[derive(Debug)]
 pub struct Commit {
+    /// Full commit hash from `git log` (kept for future features / debugging).
+    #[allow(dead_code)]
     pub hash: String,
     pub author: String,
     pub date: String,
@@ -8,7 +10,12 @@ pub struct Commit {
 
 impl Commit {
     pub fn new(hash: String, author: String, date: String, message: String) -> Self {
-        Self { hash, author, date, message }
+        Self {
+            hash,
+            author,
+            date,
+            message,
+        }
     }
 }
 

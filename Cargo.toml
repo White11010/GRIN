@@ -2,3 +2,11 @@
 name = "grin"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+description = "Terminal-friendly Git repository analytics (timeline, contributors, file churn)."
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/White11010/GRIN"
+homepage = "https://github.com/White11010/GRIN"
+keywords = ["git", "cli", "analytics", "repository", "statistics"]
+categories = ["command-line-utilities", "development-tools"]

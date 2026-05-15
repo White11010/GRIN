@@ -4,6 +4,6 @@ pub mod churn;
 pub mod contributors;
 pub mod timeline;
 
-pub use churn::{file_churn_stats, ChurnSummary, FileChurn};
-pub use contributors::{contributor_stats, ContributorStats};
-pub use timeline::{generate_events_from_commits, sort_events, Event};
+pub use churn::{ChurnSummary, FileChurn, file_churn_stats};
+pub use contributors::{ContributorStats, contributor_stats};
+pub use timeline::{Event, generate_events_from_commits, sort_events};

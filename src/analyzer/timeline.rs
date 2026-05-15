@@ -191,7 +191,7 @@ fn occupied_months(commits: &[Commit]) -> Vec<YearMonth> {
 }
 
 /// Returns the earliest commit (by date) that falls in the given month.
-fn first_commit_in_month<'a>(commits: &'a [Commit], month: YearMonth) -> Option<&'a Commit> {
+fn first_commit_in_month(commits: &[Commit], month: YearMonth) -> Option<&Commit> {
     commits
         .iter()
         .filter(|c| YearMonth::from_commit_date(&c.date) == Some(month))
@@ -425,12 +425,10 @@ fn build_peak_event(stats: &CommitStats) -> Option<Event> {
         }
     }
 
-    most_active_month.map(
-        |MostActiveMonth { year, month, count }| Event::Peak {
-            date: format!("{:04}-{:02}", year, month + 1),
-            count,
-        },
-    )
+    most_active_month.map(|MostActiveMonth { year, month, count }| Event::Peak {
+        date: format!("{:04}-{:02}", year, month + 1),
+        count,
+    })
 }
 
 /// Builds a `Born` event from the earliest commit in the log.
@@ -469,7 +467,10 @@ fn build_silence_revival_events(commits: &[Commit]) -> Vec<Event> {
 }
 
 /// Same as [`build_silence_revival_events`] but with an explicit exclusive upper bound (reserved for tests).
-fn build_silence_revival_events_until(commits: &[Commit], _until_exclusive: YearMonth) -> Vec<Event> {
+fn build_silence_revival_events_until(
+    commits: &[Commit],
+    _until_exclusive: YearMonth,
+) -> Vec<Event> {
     let months = occupied_months(commits);
     if months.is_empty() {
         return Vec::new();
@@ -589,12 +590,7 @@ mod tests {
     use super::*;
 
     fn commit(date: &str, author: &str, message: &str) -> Commit {
-        Commit::new(
-            "hash".into(),
-            author.into(),
-            date.into(),
-            message.into(),
-        )
+        Commit::new("hash".into(), author.into(), date.into(), message.into())
     }
 
     fn sort_keys(events: &[Event]) -> Vec<String> {
@@ -705,7 +701,10 @@ mod tests {
         let commits = vec![commit("2019-03-01", "alice@corp.com", "Initial commit")];
         let events = generate_events_from_commits(&commits);
         assert_eq!(
-            events.iter().filter(|e| matches!(e, Event::Latest { .. })).count(),
+            events
+                .iter()
+                .filter(|e| matches!(e, Event::Latest { .. }))
+                .count(),
             0
         );
     }

@@ -6,6 +6,6 @@ mod style;
 mod timeline;
 mod who;
 
-pub use churn::{print_churn, ChurnReport};
-pub use timeline::{print_timeline, Timeline};
-pub use who::{print_who, WhoReport};
+pub use churn::{ChurnReport, print_churn};
+pub use timeline::{Timeline, print_timeline};
+pub use who::{WhoReport, print_who};

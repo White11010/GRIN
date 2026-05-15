@@ -73,17 +73,23 @@ pub fn contributor_stats(commits: &[Commit], limit: usize) -> Vec<ContributorSta
 
     let mut stats: Vec<ContributorStats> = by_author
         .into_iter()
-        .map(|(author, (total, feat, fix, chore, other))| ContributorStats {
-            author,
-            commits: total,
-            feat_pct: pct(feat, total),
-            fix_pct: pct(fix, total),
-            chore_pct: pct(chore, total),
-            other_pct: pct(other, total),
-        })
+        .map(
+            |(author, (total, feat, fix, chore, other))| ContributorStats {
+                author,
+                commits: total,
+                feat_pct: pct(feat, total),
+                fix_pct: pct(fix, total),
+                chore_pct: pct(chore, total),
+                other_pct: pct(other, total),
+            },
+        )
         .collect();
 
-    stats.sort_by(|a, b| b.commits.cmp(&a.commits).then_with(|| a.author.cmp(&b.author)));
+    stats.sort_by(|a, b| {
+        b.commits
+            .cmp(&a.commits)
+            .then_with(|| a.author.cmp(&b.author))
+    });
     stats.truncate(limit);
     stats
 }
@@ -93,12 +99,7 @@ mod tests {
     use super::*;
 
     fn commit(date: &str, author: &str, message: &str) -> Commit {
-        Commit::new(
-            "hash".into(),
-            author.into(),
-            date.into(),
-            message.into(),
-        )
+        Commit::new("hash".into(), author.into(), date.into(), message.into())
     }
 
     #[test]

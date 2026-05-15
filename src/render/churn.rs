@@ -1,8 +1,8 @@
 use crate::analyzer::{ChurnSummary, FileChurn};
 use std::io::{self, Write};
 
-use super::common::{format_ratio_bar, RatioBarColor, CHURN_BAR_WIDTH};
-use super::style::{bold, ColorOutput};
+use super::common::{CHURN_BAR_WIDTH, RatioBarColor, format_ratio_bar};
+use super::style::{ColorOutput, bold};
 
 /// Input for rendering the `churn` command.
 pub struct ChurnReport<'a> {

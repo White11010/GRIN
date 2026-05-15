@@ -3,7 +3,7 @@ use crate::parser::Commit;
 use std::collections::HashSet;
 use std::io::{self, Write};
 
-use super::style::{blue, bold, cyan, dim_red, use_color, yellow, green};
+use super::style::{blue, bold, cyan, dim_red, green, use_color, yellow};
 
 const DATE_WIDTH: usize = 8;
 const SPINE_INDENT: &str = "           ";
@@ -135,10 +135,7 @@ fn format_rule() -> String {
 
 /// Renders the timeline header line.
 fn format_header(repo_name: &str, stats: &TimelineStats) -> String {
-    format!(
-        "  {}  ·  timeline  ·  {}\n\n",
-        repo_name, stats.duration
-    )
+    format!("  {}  ·  timeline  ·  {}\n\n", repo_name, stats.duration)
 }
 
 /// Renders the timeline footer with summary statistics.
@@ -193,12 +190,7 @@ fn format_event_line(event: &Event, commits: &[Commit]) -> String {
         }
         Event::Joined { date, author } => {
             let label = pad_date_label(&parse_date_prefix(date));
-            format!(
-                "  {}  {} {} joined",
-                label,
-                green("+"),
-                green(author)
-            )
+            format!("  {}  {} {} joined", label, green("+"), green(author))
         }
         Event::Peak { date, count } => {
             let label = pad_date_label(date);
@@ -300,12 +292,7 @@ mod tests {
     use crate::analyzer;
 
     fn commit(date: &str, author: &str, message: &str) -> Commit {
-        Commit::new(
-            "hash".into(),
-            author.into(),
-            date.into(),
-            message.into(),
-        )
+        Commit::new("hash".into(), author.into(), date.into(), message.into())
     }
 
     fn strip_ansi(s: &str) -> String {

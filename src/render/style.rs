@@ -45,6 +45,7 @@ pub(crate) fn green(text: &str) -> String {
     style(text, "32")
 }
 
+#[allow(dead_code)]
 pub(crate) fn magenta(text: &str) -> String {
     style(text, "35")
 }

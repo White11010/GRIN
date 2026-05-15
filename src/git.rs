@@ -26,11 +26,7 @@ pub fn get_repo_name() -> Result<String, std::io::Error> {
 
 pub fn get_log() -> Result<String, std::io::Error> {
     let output = Command::new("git")
-        .args([
-            "log",
-            "--pretty=format:%H|%ae|%ai|%s",
-            "--reverse",
-        ])
+        .args(["log", "--pretty=format:%H|%ae|%ai|%s", "--reverse"])
         .output()?;
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())

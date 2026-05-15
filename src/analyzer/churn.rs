@@ -17,11 +17,7 @@ pub struct ChurnSummary {
 fn path_extension(path: &str) -> Option<&str> {
     let file_name = path.rsplit(['/', '\\']).next()?;
     let (_, ext) = file_name.rsplit_once('.')?;
-    if ext.is_empty() {
-        None
-    } else {
-        Some(ext)
-    }
+    if ext.is_empty() { None } else { Some(ext) }
 }
 
 fn path_matches_extensions(path: &str, extensions: &[String]) -> bool {
@@ -63,11 +59,7 @@ pub fn file_churn_stats(
         .map(|(path, changes)| FileChurn { path, changes })
         .collect();
 
-    files.sort_by(|a, b| {
-        b.changes
-            .cmp(&a.changes)
-            .then_with(|| a.path.cmp(&b.path))
-    });
+    files.sort_by(|a, b| b.changes.cmp(&a.changes).then_with(|| a.path.cmp(&b.path)));
     files.truncate(limit);
 
     (files, summary)

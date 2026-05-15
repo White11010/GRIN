@@ -72,10 +72,7 @@ fn normalize_ext_token(token: &str) -> Result<String, String> {
 }
 
 fn parse_extensions_list(raw: &str) -> Result<Vec<String>, String> {
-    let tokens: Vec<Result<String, String>> = raw
-        .split(',')
-        .map(normalize_ext_token)
-        .collect();
+    let tokens: Vec<Result<String, String>> = raw.split(',').map(normalize_ext_token).collect();
     let mut out = Vec::new();
     for t in tokens {
         out.push(t?);
@@ -86,10 +83,7 @@ fn parse_extensions_list(raw: &str) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
-fn parse_flags(
-    command: &Command,
-    args: &[String],
-) -> Result<(usize, Option<Vec<String>>), String> {
+fn parse_flags(command: &Command, args: &[String]) -> Result<(usize, Option<Vec<String>>), String> {
     let mut limit = 5usize;
     let mut churn_extensions: Option<Vec<String>> = None;
     let mut i = 2;
@@ -108,7 +102,10 @@ fn parse_flags(
             }
             "--ext" => {
                 if !matches!(command, Command::Churn) {
-                    return Err("`--ext` is only valid with the `churn` command. Run `help` for usage.".into());
+                    return Err(
+                        "`--ext` is only valid with the `churn` command. Run `help` for usage."
+                            .into(),
+                    );
                 }
                 i += 1;
                 let value = args.get(i).ok_or("missing value for `--ext`")?;
@@ -189,11 +186,8 @@ pub fn run(config: Config) {
             let log = git::get_log_with_files().unwrap();
             let touches = parser::parse_file_touches(&log).unwrap();
             let ext_filter = config.churn_extensions.as_deref();
-            let (files, summary) =
-                analyzer::file_churn_stats(&touches, config.limit, ext_filter);
-            let extensions_note = config.churn_extensions.as_ref().map(|list| {
-                list.join(", ")
-            });
+            let (files, summary) = analyzer::file_churn_stats(&touches, config.limit, ext_filter);
+            let extensions_note = config.churn_extensions.as_ref().map(|list| list.join(", "));
             render::print_churn(&render::ChurnReport {
                 repo_name: &repo_name,
                 files: &files,
@@ -219,12 +213,7 @@ mod tests {
 
     #[test]
     fn config_parses_limit_flag() {
-        let args = vec![
-            "grin".into(),
-            "churn".into(),
-            "--limit".into(),
-            "10".into(),
-        ];
+        let args = vec!["grin".into(), "churn".into(), "--limit".into(), "10".into()];
         let config = Config::build(&args).unwrap();
         assert_eq!(config.limit, 10);
     }

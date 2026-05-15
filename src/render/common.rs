@@ -1,4 +1,4 @@
-use super::style::{green, red, ColorOutput};
+use super::style::{ColorOutput, green, red};
 
 pub(crate) const WHO_BAR_WIDTH: usize = 12;
 pub(crate) const CHURN_BAR_WIDTH: usize = 20;
