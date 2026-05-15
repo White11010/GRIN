@@ -23,7 +23,8 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             pkg: zip
-          - os: macos-13
+          # Intel macOS (macos-13 retired); see GitHub changelog on macOS runner images.
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             pkg: tar.gz
           - os: macos-latest
