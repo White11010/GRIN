@@ -124,47 +124,29 @@ fn local_year_month() -> (Year, u32) {
         (st.year as Year, st.month as u32)
     }
 
-    #[cfg(not(windows))]
+    #[cfg(unix)]
     {
         use std::time::{SystemTime, UNIX_EPOCH};
 
-        #[repr(C)]
-        struct Tm {
-            sec: i32,
-            min: i32,
-            hour: i32,
-            mday: i32,
-            mon: i32,
-            year: i32,
-            wday: i32,
-            yday: i32,
-            isdst: i32,
-        }
-
-        let secs = SystemTime::now()
+        let secs_u64 = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system clock before UNIX epoch")
-            .as_secs() as i64;
-        let mut tm = Tm {
-            sec: 0,
-            min: 0,
-            hour: 0,
-            mday: 0,
-            mon: 0,
-            year: 0,
-            wday: 0,
-            yday: 0,
-            isdst: 0,
-        };
+            .as_secs();
+        let secs = libc::time_t::try_from(secs_u64).unwrap_or(libc::time_t::MAX);
 
-        unsafe extern "C" {
-            fn localtime_r(time: *const i64, result: *mut Tm) -> *mut Tm;
-        }
+        let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+        let out = unsafe { libc::localtime_r(&secs, &mut tm) };
+        assert!(
+            !out.is_null(),
+            "localtime_r failed (invalid time_t or libc error)"
+        );
 
-        unsafe {
-            localtime_r(&secs, &mut tm);
-        }
-        ((tm.year + 1900) as Year, (tm.mon + 1) as u32)
+        ((tm.tm_year + 1900) as Year, (tm.tm_mon as u32) + 1)
+    }
+
+    #[cfg(not(any(windows, unix)))]
+    {
+        compile_error!("grin targets Windows and Unix-like systems only");
     }
 }
 

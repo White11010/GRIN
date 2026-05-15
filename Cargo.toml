@@ -10,3 +10,6 @@ repository = "https://github.com/White11010/GRIN"
 homepage = "https://github.com/White11010/GRIN"
 keywords = ["git", "cli", "analytics", "repository", "statistics"]
 categories = ["command-line-utilities", "development-tools"]
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
