@@ -85,29 +85,86 @@ function Get-WebErrorDetail {
     return $detail
 }
 
+function Get-TagFromReleaseUrl {
+    param([string]$Url)
+    if ($Url -match '/releases/tag/(v[^/?#]+)') {
+        return $Matches[1]
+    }
+    return $null
+}
+
 function Get-LatestReleaseTag {
     param([string]$Repo)
 
     # Resolve latest via github.com redirect (no api.github.com — avoids API 403/rate limits).
-    $latestUrl = "https://github.com/$Repo/releases/latest"
-    try {
-        $response = Invoke-WebRequest `
-            -Uri $latestUrl `
-            -UseBasicParsing `
-            -MaximumRedirection 5 `
-            -Headers $GitHubRequestHeaders
-    }
-    catch {
-        $detail = Get-WebErrorDetail -ErrorRecord $_
-        Write-Error ( @(
-            "install.ps1: failed to resolve latest release ($detail).",
-            'install.ps1: set a tag manually, e.g. $env:GRIN_INSTALL_VERSION = ''v0.1.2'', then re-run.'
-        ) -join "`n" )
-    }
+    $url = "https://github.com/$Repo/releases/latest"
+    $redirectStatuses = @(
+        [System.Net.HttpStatusCode]::MovedPermanently
+        [System.Net.HttpStatusCode]::Found
+        [System.Net.HttpStatusCode]::SeeOther
+        [System.Net.HttpStatusCode]::TemporaryRedirect
+        [System.Net.HttpStatusCode]::Redirect
+    )
 
-    $finalUri = $response.BaseResponse.ResponseUri.AbsoluteUri
-    if ($finalUri -match '/releases/tag/(v[^/?#]+)') {
-        return $Matches[1]
+    for ($i = 0; $i -lt 10; $i++) {
+        $tag = Get-TagFromReleaseUrl -Url $url
+        if ($tag) { return $tag }
+
+        $request = [System.Net.HttpWebRequest]::Create($url)
+        $request.Method = 'HEAD'
+        $request.AllowAutoRedirect = $false
+        $request.UserAgent = $GitHubRequestHeaders['User-Agent']
+        $request.Timeout = 30000
+
+        try {
+            $response = $request.GetResponse()
+            try {
+                if ($response.ResponseUri) {
+                    $url = $response.ResponseUri.AbsoluteUri
+                }
+            }
+            finally {
+                $response.Close()
+            }
+            continue
+        }
+        catch [System.Net.WebException] {
+            $response = $_.Exception.Response
+            if (-not $response) {
+                $detail = $_.Exception.Message
+                Write-Error ( @(
+                    "install.ps1: failed to resolve latest release ($detail).",
+                    'install.ps1: set a tag manually, e.g. $env:GRIN_INSTALL_VERSION = ''v0.1.2'', then re-run.'
+                ) -join "`n" )
+            }
+
+            try {
+                $status = $response.StatusCode
+                if ($redirectStatuses -contains $status) {
+                    $location = $response.Headers['Location']
+                    if (-not $location) {
+                        Write-Error 'install.ps1: could not parse latest release tag from GitHub redirect.'
+                    }
+                    if ($location -notmatch '^https?://') {
+                        $url = ([Uri]::new([Uri]$url, $location)).AbsoluteUri
+                    }
+                    else {
+                        $url = $location
+                    }
+                    continue
+                }
+
+                $code = [int]$status
+                $detail = "HTTP $code - $($_.Exception.Message)"
+                Write-Error ( @(
+                    "install.ps1: failed to resolve latest release ($detail).",
+                    'install.ps1: set a tag manually, e.g. $env:GRIN_INSTALL_VERSION = ''v0.1.2'', then re-run.'
+                ) -join "`n" )
+            }
+            finally {
+                $response.Close()
+            }
+        }
     }
 
     Write-Error 'install.ps1: could not parse latest release tag from GitHub redirect.'
