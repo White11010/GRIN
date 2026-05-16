@@ -77,6 +77,28 @@ command -v curl >/dev/null 2>&1 || {
   exit 1
 }
 
+CURL_GITHUB=(curl --proto '=https' --tlsv1.2 -fsSL -A 'GRIN-install-script')
+
+get_latest_release_tag() {
+  local repo="$1"
+  local effective
+
+  effective="$("${CURL_GITHUB[@]}" -o /dev/null -w '%{url_effective}' \
+    "https://github.com/${repo}/releases/latest")" || {
+    echo "install.sh: failed to resolve latest release." >&2
+    echo "install.sh: set a tag manually, e.g. curl ... | bash -s -- --version v0.1.2" >&2
+    exit 1
+  }
+
+  if [[ "$effective" =~ /releases/tag/(v[^/?#]+) ]]; then
+    echo "${BASH_REMATCH[1]}"
+    return
+  fi
+
+  echo "install.sh: could not parse latest release tag from GitHub redirect." >&2
+  exit 1
+}
+
 uname_s="$(uname -s)"
 uname_m="$(uname -m)"
 target=""
@@ -115,15 +137,7 @@ case "$uname_s" in
 esac
 
 if [[ -z "$VERSION" ]]; then
-  json="$(curl --proto '=https' --tlsv1.2 -fsSL "https://api.github.com/repos/${REPO}/releases/latest")" || {
-    echo "install.sh: failed to fetch latest release metadata." >&2
-    exit 1
-  }
-  VERSION="$(printf '%s' "$json" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
-  if [[ -z "$VERSION" ]]; then
-    echo "install.sh: could not parse latest release tag (GitHub API format change?)." >&2
-    exit 1
-  fi
+  VERSION="$(get_latest_release_tag "$REPO")"
 fi
 
 case "$VERSION" in
@@ -144,7 +158,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "install.sh: installing GRIN ${VERSION} (${target}) from ${url}" >&2
-curl --proto '=https' --tlsv1.2 -fsSL -o "${tmp}/${asset}" "$url" || {
+"${CURL_GITHUB[@]}" -o "${tmp}/${asset}" "$url" || {
   echo "install.sh: download failed. Check the tag and your network, or install from source." >&2
   exit 1
 }
