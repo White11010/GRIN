@@ -5,6 +5,8 @@ mod git;
 mod parser;
 mod render;
 
+use render::{ColorOutput, GlyphSet};
+
 pub enum Command {
     Timeline,
     Who,
@@ -47,9 +49,11 @@ Commands:\n\
   who         top contributors\n\
   churn       files with the most changes\n\
   help        show this message\n\n\
-Flags (after the command):\n\
-  --limit N   max rows (default: 5)\n\
-  --ext LIST  churn only: comma-separated file extensions (e.g. ts,tsx)\n"
+Flags (before or after the command):\n\
+  --limit N     max rows (default: 5)\n\
+  --ext LIST    churn only: comma-separated file extensions (e.g. ts,tsx)\n\
+  --no-color    disable ANSI colors; also env NO_COLOR\n\
+  --ascii       ASCII symbols instead of Unicode; also env GRIN_ASCII\n"
     )
 }
 
@@ -57,6 +61,8 @@ pub struct Config {
     pub command: Command,
     pub limit: usize,
     pub churn_extensions: Option<Vec<String>>,
+    pub color: ColorOutput,
+    pub glyphs: GlyphSet,
 }
 
 fn normalize_ext_token(token: &str) -> Result<String, String> {
@@ -81,6 +87,40 @@ fn parse_extensions_list(raw: &str) -> Result<Vec<String>, String> {
         return Err("--ext needs at least one extension (e.g. ts,tsx).".into());
     }
     Ok(out)
+}
+
+/// Removes global flags from argv tail; returns cleaned args and flag presence.
+fn strip_global_flags(tail: &[String]) -> (Vec<String>, bool, bool) {
+    let mut no_color = false;
+    let mut ascii = false;
+    let mut out = Vec::with_capacity(tail.len());
+    for arg in tail {
+        match arg.as_str() {
+            "--no-color" | "-C" => no_color = true,
+            "--ascii" => ascii = true,
+            other => out.push(other.to_string()),
+        }
+    }
+    (out, no_color, ascii)
+}
+
+pub(crate) fn resolve_color(no_color_flag: bool) -> ColorOutput {
+    if no_color_flag || std::env::var_os("NO_COLOR").is_some() {
+        ColorOutput::Never
+    } else {
+        ColorOutput::AutoTerminal
+    }
+}
+
+pub(crate) fn resolve_glyphs(ascii_flag: bool) -> GlyphSet {
+    let env_ascii = std::env::var("GRIN_ASCII")
+        .map(|v| !v.is_empty())
+        .unwrap_or(false);
+    if ascii_flag || env_ascii {
+        GlyphSet::Ascii
+    } else {
+        GlyphSet::Unicode
+    }
 }
 
 fn parse_flags(command: &Command, args: &[String]) -> Result<(usize, Option<Vec<String>>), String> {
@@ -112,6 +152,12 @@ fn parse_flags(command: &Command, args: &[String]) -> Result<(usize, Option<Vec<
                 churn_extensions = Some(parse_extensions_list(value)?);
                 i += 1;
             }
+            "--no-color" | "-C" | "--ascii" => {
+                return Err(format!(
+                    "global flag `{}` must appear before or after the command name, not mixed with `--limit` / `--ext` values.",
+                    args[i]
+                ));
+            }
             flag => {
                 return Err(format!(
                     "unknown argument `{flag}`. Run `{} help` for usage.",
@@ -125,35 +171,68 @@ fn parse_flags(command: &Command, args: &[String]) -> Result<(usize, Option<Vec<
 
 impl Config {
     pub fn build(args: &[String]) -> Result<Self, String> {
+        let default = Self {
+            command: Command::Help,
+            limit: 5,
+            churn_extensions: None,
+            color: resolve_color(false),
+            glyphs: resolve_glyphs(false),
+        };
+
         if args.len() < 2 {
+            return Ok(default);
+        }
+
+        let (tail, no_color_flag, ascii_flag) = strip_global_flags(&args[1..]);
+        let color = resolve_color(no_color_flag);
+        let glyphs = resolve_glyphs(ascii_flag);
+
+        if tail.is_empty() {
             return Ok(Self {
-                command: Command::Help,
-                limit: 5,
-                churn_extensions: None,
+                color,
+                glyphs,
+                ..default
             });
         }
 
-        let command = Command::try_from(args[1].as_str())?;
+        let mut full_args = vec![args[0].clone()];
+        full_args.extend(tail);
+
+        if full_args.len() < 2 {
+            return Ok(Self {
+                color,
+                glyphs,
+                ..default
+            });
+        }
+
+        let command = Command::try_from(full_args[1].as_str())?;
 
         if matches!(command, Command::Help) {
             return Ok(Self {
                 command,
                 limit: 5,
                 churn_extensions: None,
+                color,
+                glyphs,
             });
         }
 
-        let (limit, churn_extensions) = parse_flags(&command, args)?;
+        let (limit, churn_extensions) = parse_flags(&command, &full_args)?;
 
         Ok(Self {
             command,
             limit,
             churn_extensions,
+            color,
+            glyphs,
         })
     }
 }
 
 pub fn run(config: Config) {
+    render::init_render(config.color, config.glyphs);
+
     if matches!(config.command, Command::Help) {
         let program = program_invocation();
         print!("{}", help_text(&program));
@@ -209,6 +288,15 @@ mod tests {
         let config = Config::build(&args).unwrap();
         assert_eq!(config.limit, 5);
         assert!(config.churn_extensions.is_none());
+        if std::env::var_os("NO_COLOR").is_none() {
+            assert_eq!(config.color, ColorOutput::AutoTerminal);
+        }
+        if std::env::var("GRIN_ASCII")
+            .map(|v| v.is_empty())
+            .unwrap_or(true)
+        {
+            assert_eq!(config.glyphs, GlyphSet::Unicode);
+        }
     }
 
     #[test]
@@ -266,5 +354,57 @@ mod tests {
     fn ext_not_allowed_for_who() {
         let args = vec!["grin".into(), "who".into(), "--ext".into(), "rs".into()];
         assert!(Config::build(&args).is_err());
+    }
+
+    #[test]
+    fn no_color_flag_before_command() {
+        let args = vec!["grin".into(), "--no-color".into(), "who".into()];
+        let config = Config::build(&args).unwrap();
+        assert_eq!(config.color, ColorOutput::Never);
+        assert!(matches!(config.command, Command::Who));
+    }
+
+    #[test]
+    fn no_color_flag_after_command() {
+        let args = vec!["grin".into(), "timeline".into(), "--no-color".into()];
+        let config = Config::build(&args).unwrap();
+        assert_eq!(config.color, ColorOutput::Never);
+        assert!(matches!(config.command, Command::Timeline));
+    }
+
+    #[test]
+    fn ascii_flag_sets_glyph_set() {
+        let args = vec!["grin".into(), "--ascii".into(), "who".into()];
+        let config = Config::build(&args).unwrap();
+        assert_eq!(config.glyphs, GlyphSet::Ascii);
+    }
+
+    #[test]
+    fn resolve_color_respects_no_color_env() {
+        let key = "NO_COLOR";
+        let previous = std::env::var_os(key);
+        // SAFETY: restored before test returns.
+        unsafe { std::env::set_var(key, "1") };
+        assert_eq!(resolve_color(false), ColorOutput::Never);
+        match previous {
+            Some(value) => unsafe { std::env::set_var(key, value) },
+            None => unsafe { std::env::remove_var(key) },
+        }
+    }
+
+    #[test]
+    fn no_color_flag_overrides_tty_auto() {
+        let args = vec!["grin".into(), "who".into(), "--no-color".into()];
+        let config = Config::build(&args).unwrap();
+        assert_eq!(config.color, ColorOutput::Never);
+    }
+
+    #[test]
+    fn help_text_documents_global_flags() {
+        let text = help_text("grin");
+        assert!(text.contains("--no-color"));
+        assert!(text.contains("--ascii"));
+        assert!(text.contains("NO_COLOR"));
+        assert!(text.contains("GRIN_ASCII"));
     }
 }

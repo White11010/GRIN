@@ -1,8 +1,9 @@
 use crate::analyzer::ContributorStats;
 use std::io::{self, Write};
 
-use super::common::{RatioBarColor, WHO_BAR_WIDTH, format_ratio_bar};
-use super::style::{ColorOutput, bold};
+use super::common::{RatioBarColor, WHO_BAR_WIDTH, format_ratio_bar_current};
+use super::glyphs;
+use super::style::bold;
 
 /// Input for rendering the `who` command.
 pub struct WhoReport<'a> {
@@ -11,16 +12,16 @@ pub struct WhoReport<'a> {
 }
 
 fn format_who_header(repo_name: &str) -> String {
-    format!("  {}  ·  who  ·  contributors\n\n", repo_name)
+    let sep = glyphs::separator_dot();
+    format!("  {}  {sep}  who  {sep}  contributors\n\n", repo_name)
 }
 
 fn format_who_row(author_width: usize, contributor: &ContributorStats, max_commits: u32) -> String {
-    let bar = format_ratio_bar(
+    let bar = format_ratio_bar_current(
         contributor.commits,
         max_commits,
         WHO_BAR_WIDTH,
         RatioBarColor::Green,
-        ColorOutput::AutoTerminal,
     );
     format!(
         "  {:author_width$}  {}  {} commits  feat {}%  fix {}%  chore {}%  other {}%\n",
@@ -71,7 +72,8 @@ pub fn print_who(report: &WhoReport) {
 mod tests {
     use super::*;
     use crate::render::common::{RatioBarColor, format_ratio_bar};
-    use crate::render::style::ColorOutput;
+    use crate::render::glyphs::GlyphSet;
+    use crate::render::style::{ColorOutput, init_color};
 
     fn strip_ansi(s: &str) -> String {
         let mut result = String::with_capacity(s.len());
@@ -88,17 +90,21 @@ mod tests {
 
     #[test]
     fn format_ratio_bar_small_value_shows_one_block() {
+        init_color(ColorOutput::Never);
+        glyphs::init_glyphs(GlyphSet::Unicode);
         let bar = format_ratio_bar(1, 10_000, 12, RatioBarColor::Plain, ColorOutput::Never);
-        assert_eq!(bar.matches('█').count(), 1);
+        assert_eq!(bar.matches(glyphs::bar_filled()).count(), 1);
         assert_eq!(bar.chars().count(), 12);
     }
 
     #[test]
     fn format_ratio_bar_scales_to_width() {
+        init_color(ColorOutput::Never);
+        glyphs::init_glyphs(GlyphSet::Unicode);
         let bar = format_ratio_bar(8, 10, 10, RatioBarColor::Plain, ColorOutput::Never);
         assert_eq!(bar.chars().count(), 10);
-        assert_eq!(bar.matches('█').count(), 8);
-        assert_eq!(bar.matches('░').count(), 2);
+        assert_eq!(bar.matches(glyphs::bar_filled()).count(), 8);
+        assert_eq!(bar.matches(glyphs::bar_empty()).count(), 2);
     }
 
     #[test]

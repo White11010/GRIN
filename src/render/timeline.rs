@@ -3,13 +3,13 @@ use crate::parser::Commit;
 use std::collections::HashSet;
 use std::io::{self, Write};
 
+use super::glyphs;
 use super::style::{blue, bold, cyan, dim_red, green, use_color, yellow};
 
 const DATE_WIDTH: usize = 8;
 const SPINE_INDENT: &str = "           ";
 const RULE_WIDTH: usize = 54;
 const LINE_WIDTH: usize = 54;
-const BLOCKS: [char; 9] = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 const MONTH_NAMES: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
@@ -118,7 +118,7 @@ fn format_sparkline(chart: [u32; 12]) -> String {
         .iter()
         .map(|&count| {
             let level = ((count as f64 / max as f64) * 8.0).round() as usize;
-            BLOCKS[level.min(8)]
+            glyphs::sparkline_char(level.min(8))
         })
         .collect()
 }
@@ -130,16 +130,25 @@ fn pad_date_label(label: &str) -> String {
 
 /// Renders the horizontal rule used in header and footer.
 fn format_rule() -> String {
-    format!("  {}\n", "─".repeat(RULE_WIDTH))
+    let ch = glyphs::rule_char();
+    format!(
+        "  {}\n",
+        std::iter::repeat_n(ch, RULE_WIDTH).collect::<String>()
+    )
 }
 
 /// Renders the timeline header line.
 fn format_header(repo_name: &str, stats: &TimelineStats) -> String {
-    format!("  {}  ·  timeline  ·  {}\n\n", repo_name, stats.duration)
+    let sep = glyphs::separator_dot();
+    format!(
+        "  {}  {sep}  timeline  {sep}  {}\n\n",
+        repo_name, stats.duration
+    )
 }
 
 /// Renders the timeline footer with summary statistics.
 fn format_footer(stats: &TimelineStats) -> String {
+    let sep = glyphs::separator_dot();
     let mut parts = vec![
         format!("{} contributors", bold(&stats.contributors.to_string())),
         format!("{} commits", bold(&stats.commit_count.to_string())),
@@ -156,7 +165,7 @@ fn format_footer(stats: &TimelineStats) -> String {
         ));
     }
 
-    format!("  {}\n", parts.join("  ·  "))
+    format!("  {}\n", parts.join(&format!("  {sep}  ")))
 }
 
 /// Formats the silence suffix with dashed fill to the target line width.
@@ -166,13 +175,18 @@ fn format_silence_suffix(months: u32, prefix_len: usize) -> String {
     } else {
         format!("{months} month silence")
     };
-    let head = format!("  ╌╌ {label} ");
+    let head = format!("{}{label} ", glyphs::silence_head_prefix());
     let fill_len = LINE_WIDTH.saturating_sub(prefix_len + head.chars().count());
-    format!("{head}{}", "╌".repeat(fill_len))
+    let dash = glyphs::silence_dash();
+    format!(
+        "{head}{}",
+        std::iter::repeat_n(dash, fill_len).collect::<String>()
+    )
 }
 
 /// Renders a single timeline event line (without spine connector).
 fn format_event_line(event: &Event, commits: &[Commit]) -> String {
+    let milestone = glyphs::milestone();
     match event {
         Event::Born {
             date,
@@ -181,9 +195,9 @@ fn format_event_line(event: &Event, commits: &[Commit]) -> String {
         } => {
             let label = pad_date_label(&parse_date_prefix(date));
             format!(
-                "  {}  {}  \"{}\"  {}",
+                "  {}  {} born  \"{}\"  {}",
                 label,
-                cyan("◆ born"),
+                cyan(&format!("{milestone} born")),
                 message,
                 author
             )
@@ -197,7 +211,7 @@ fn format_event_line(event: &Event, commits: &[Commit]) -> String {
             format!(
                 "  {}  {}  — {} commits this month",
                 label,
-                yellow("◆ peak"),
+                yellow(&format!("{milestone} peak")),
                 bold(&count.to_string())
             )
         }
@@ -215,9 +229,9 @@ fn format_event_line(event: &Event, commits: &[Commit]) -> String {
                 .map(|c| c.author.as_str())
                 .unwrap_or("");
             format!(
-                "  {}  {}  \"{}\"  {}",
+                "  {}  {} revival  \"{}\"  {}",
                 label,
-                cyan("◆ revival"),
+                cyan(&format!("{milestone} revival")),
                 msg,
                 author
             )
@@ -229,9 +243,9 @@ fn format_event_line(event: &Event, commits: &[Commit]) -> String {
         } => {
             let label = pad_date_label(&parse_date_prefix(date));
             format!(
-                "  {}  {}  \"{}\"  {}",
+                "  {}  {} latest  \"{}\"  {}",
                 label,
-                cyan("◆ latest"),
+                cyan(&format!("{milestone} latest")),
                 message,
                 author
             )
@@ -239,8 +253,9 @@ fn format_event_line(event: &Event, commits: &[Commit]) -> String {
         Event::EndOfYear { year, chart } => {
             let label = pad_date_label(&year.to_string());
             let sparkline = format_sparkline(*chart);
+            let sep = glyphs::year_sparkline_sep();
             format!(
-                "  {} │  {}",
+                "  {} {sep}  {}",
                 label,
                 if use_color() {
                     blue(&sparkline)
@@ -254,7 +269,11 @@ fn format_event_line(event: &Event, commits: &[Commit]) -> String {
 
 /// Renders a spine connector line between events.
 fn format_spine(is_last: bool) -> String {
-    let ch = if is_last { '·' } else { '│' };
+    let ch = if is_last {
+        glyphs::spine_last()
+    } else {
+        glyphs::spine_vertical()
+    };
     format!("{SPINE_INDENT}{ch}\n")
 }
 
@@ -290,6 +309,7 @@ pub fn print_timeline(timeline: &Timeline) {
 mod tests {
     use super::*;
     use crate::analyzer;
+    use crate::render::glyphs::{self, GlyphSet};
 
     fn commit(date: &str, author: &str, message: &str) -> Commit {
         Commit::new("hash".into(), author.into(), date.into(), message.into())
@@ -310,10 +330,21 @@ mod tests {
 
     #[test]
     fn format_sparkline_normalizes_counts() {
+        glyphs::init_glyphs(GlyphSet::Unicode);
         let chart = [0, 1, 2, 0, 47, 0, 0, 0, 0, 0, 0, 0];
         let line = format_sparkline(chart);
         assert_eq!(line.chars().count(), 12);
         assert!(line.contains('█'));
+    }
+
+    #[test]
+    fn ascii_sparkline_uses_ascii_chars() {
+        glyphs::init_glyphs(GlyphSet::Ascii);
+        let chart = [0, 1, 2, 0, 47, 0, 0, 0, 0, 0, 0, 0];
+        let line = format_sparkline(chart);
+        assert_eq!(line.chars().count(), 12);
+        assert!(!line.contains('█'));
+        assert!(line.contains('#'));
     }
 
     #[test]
@@ -326,6 +357,7 @@ mod tests {
 
     #[test]
     fn render_contains_expected_sections() {
+        glyphs::init_glyphs(GlyphSet::Unicode);
         let commits = vec![
             commit("2019-03-01", "alice@corp.com", "Initial commit"),
             commit("2019-06-15", "carol@corp.com", "Carol joins"),
@@ -362,6 +394,7 @@ mod tests {
 
     #[test]
     fn render_revival_shows_message() {
+        glyphs::init_glyphs(GlyphSet::Unicode);
         let commits = vec![
             commit("2020-07-15", "alice@corp.com", "Last"),
             commit("2020-12-01", "alice@corp.com", "Back to it"),

@@ -1,8 +1,9 @@
 use crate::analyzer::{ChurnSummary, FileChurn};
 use std::io::{self, Write};
 
-use super::common::{CHURN_BAR_WIDTH, RatioBarColor, format_ratio_bar};
-use super::style::{ColorOutput, bold};
+use super::common::{CHURN_BAR_WIDTH, RatioBarColor, format_ratio_bar_current};
+use super::glyphs;
+use super::style::bold;
 
 /// Input for rendering the `churn` command.
 pub struct ChurnReport<'a> {
@@ -13,8 +14,9 @@ pub struct ChurnReport<'a> {
 }
 
 fn format_churn_header(repo_name: &str, extensions_filter: Option<&str>) -> String {
+    let sep = glyphs::separator_dot();
     let mut header = format!(
-        "  {}  ·  churn  ·  top files by change frequency\n",
+        "  {}  {sep}  churn  {sep}  top files by change frequency\n",
         repo_name
     );
     if let Some(exts) = extensions_filter {
@@ -25,12 +27,11 @@ fn format_churn_header(repo_name: &str, extensions_filter: Option<&str>) -> Stri
 }
 
 fn format_churn_row(path_width: usize, file: &FileChurn, max_changes: u32) -> String {
-    let bar = format_ratio_bar(
+    let bar = format_ratio_bar_current(
         file.changes,
         max_changes,
         CHURN_BAR_WIDTH,
         RatioBarColor::Red,
-        ColorOutput::AutoTerminal,
     );
     format!(
         "  {:path_width$}  {}  {} changes\n",
@@ -41,8 +42,9 @@ fn format_churn_row(path_width: usize, file: &FileChurn, max_changes: u32) -> St
 }
 
 fn format_churn_footer(summary: &ChurnSummary) -> String {
+    let sep = glyphs::separator_dot();
     format!(
-        "\n  {} commits scanned  ·  {} unique files\n",
+        "\n  {} commits scanned  {sep}  {} unique files\n",
         bold(&summary.commits_scanned.to_string()),
         bold(&summary.unique_files.to_string()),
     )

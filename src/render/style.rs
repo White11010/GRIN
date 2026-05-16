@@ -1,11 +1,27 @@
 use std::io::{self, IsTerminal};
+use std::sync::RwLock;
 
 /// Whether ANSI styling may be emitted.
-#[allow(dead_code)] // `Never` used in tests and for explicit opt-out
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ColorOutput {
+pub enum ColorOutput {
     Never,
     AutoTerminal,
+}
+
+static COLOR: RwLock<Option<ColorOutput>> = RwLock::new(None);
+
+/// Sets the global color mode for this process (call once at startup from `run`).
+pub(crate) fn init_color(mode: ColorOutput) {
+    *COLOR.write().expect("color lock") = Some(mode);
+}
+
+fn active_color() -> ColorOutput {
+    (*COLOR.read().expect("color lock")).unwrap_or(ColorOutput::AutoTerminal)
+}
+
+/// Current color mode after [`init_color`].
+pub(crate) fn current_color() -> ColorOutput {
+    active_color()
 }
 
 impl ColorOutput {
@@ -18,11 +34,11 @@ impl ColorOutput {
 }
 
 pub(crate) fn use_color() -> bool {
-    ColorOutput::AutoTerminal.is_on()
+    current_color().is_on()
 }
 
 pub(crate) fn style(text: &str, code: &str) -> String {
-    if ColorOutput::AutoTerminal.is_on() {
+    if current_color().is_on() {
         format!("\x1b[{code}m{text}\x1b[0m")
     } else {
         text.to_string()
