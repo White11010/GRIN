@@ -70,10 +70,9 @@ if ($arch -eq 'ARM64' -or $archWoW -eq 'ARM64') {
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# GitHub API rejects requests without a User-Agent (403 Forbidden).
-$GitHubApiHeaders = @{
+# User-Agent avoids 403 from GitHub on some PowerShell defaults.
+$GitHubRequestHeaders = @{
     'User-Agent' = 'GRIN-install-script'
-    'Accept'     = 'application/vnd.github+json'
 }
 
 function Get-WebErrorDetail {
@@ -86,25 +85,38 @@ function Get-WebErrorDetail {
     return $detail
 }
 
-$target = 'x86_64-pc-windows-msvc'
+function Get-LatestReleaseTag {
+    param([string]$Repo)
 
-if (-not $Version) {
+    # Resolve latest via github.com redirect (no api.github.com — avoids API 403/rate limits).
+    $latestUrl = "https://github.com/$Repo/releases/latest"
     try {
-        $release = Invoke-RestMethod `
-            -Uri "https://api.github.com/repos/$Repo/releases/latest" `
-            -Headers $GitHubApiHeaders
+        $response = Invoke-WebRequest `
+            -Uri $latestUrl `
+            -UseBasicParsing `
+            -MaximumRedirection 5 `
+            -Headers $GitHubRequestHeaders
     }
     catch {
         $detail = Get-WebErrorDetail -ErrorRecord $_
         Write-Error ( @(
-            "install.ps1: failed to fetch latest release metadata ($detail).",
+            "install.ps1: failed to resolve latest release ($detail).",
             'install.ps1: set a tag manually, e.g. $env:GRIN_INSTALL_VERSION = ''v0.1.2'', then re-run.'
         ) -join "`n" )
     }
-    $Version = $release.tag_name
-    if (-not $Version) {
-        Write-Error 'install.ps1: could not parse latest release tag (GitHub API format change?).'
+
+    $finalUri = $response.BaseResponse.ResponseUri.AbsoluteUri
+    if ($finalUri -match '/releases/tag/(v[^/?#]+)') {
+        return $Matches[1]
     }
+
+    Write-Error 'install.ps1: could not parse latest release tag from GitHub redirect.'
+}
+
+$target = 'x86_64-pc-windows-msvc'
+
+if (-not $Version) {
+    $Version = Get-LatestReleaseTag -Repo $Repo
 }
 
 if ($Version -notmatch '^v') {
@@ -121,7 +133,7 @@ try {
     $zipPath = Join-Path $tmp $asset
     Write-Host "install.ps1: installing GRIN $Version ($target) from $url"
     try {
-        Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+        Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing -Headers $GitHubRequestHeaders
     }
     catch {
         $detail = Get-WebErrorDetail -ErrorRecord $_
