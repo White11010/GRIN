@@ -70,14 +70,36 @@ if ($arch -eq 'ARM64' -or $archWoW -eq 'ARM64') {
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+# GitHub API rejects requests without a User-Agent (403 Forbidden).
+$GitHubApiHeaders = @{
+    'User-Agent' = 'GRIN-install-script'
+    'Accept'     = 'application/vnd.github+json'
+}
+
+function Get-WebErrorDetail {
+    param([System.Management.Automation.ErrorRecord]$ErrorRecord)
+    $detail = $ErrorRecord.Exception.Message
+    if ($ErrorRecord.Exception.Response -and $ErrorRecord.Exception.Response.StatusCode) {
+        $code = [int]$ErrorRecord.Exception.Response.StatusCode
+        $detail = "HTTP $code - $detail"
+    }
+    return $detail
+}
+
 $target = 'x86_64-pc-windows-msvc'
 
 if (-not $Version) {
     try {
-        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
+        $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/$Repo/releases/latest" `
+            -Headers $GitHubApiHeaders
     }
     catch {
-        Write-Error 'install.ps1: failed to fetch latest release metadata.'
+        $detail = Get-WebErrorDetail -ErrorRecord $_
+        Write-Error @(
+            "install.ps1: failed to fetch latest release metadata ($detail).",
+            'install.ps1: set a tag manually, e.g. $env:GRIN_INSTALL_VERSION = ''v0.1.2'', then re-run.'
+        ) -join "`n"
     }
     $Version = $release.tag_name
     if (-not $Version) {
@@ -102,7 +124,8 @@ try {
         Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
     }
     catch {
-        Write-Error 'install.ps1: download failed. Check the tag and your network, or install from source.'
+        $detail = Get-WebErrorDetail -ErrorRecord $_
+        Write-Error "install.ps1: download failed ($detail). Check the tag and your network, or install from source."
     }
 
     $extractDir = Join-Path $tmp 'extract'
