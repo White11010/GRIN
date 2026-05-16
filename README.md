@@ -54,18 +54,43 @@ After installation, confirm `grin` is on your `PATH`:
 grin help
 ```
 
-### Prebuilt binaries (Windows and manual installs)
+### Install script (Windows)
 
-See [**Releases**](https://github.com/White11010/GRIN/releases): each tag publishes archives for:
+Installs the latest **GitHub Release** binary into `%USERPROFILE%\.local\bin` and adds that directory to your **user PATH** when needed.
+
+```powershell
+irm https://raw.githubusercontent.com/White11010/GRIN/main/scripts/install.ps1 | iex
+```
+
+Install a specific version:
+
+```powershell
+$env:GRIN_INSTALL_VERSION = 'v0.1.0'
+irm https://raw.githubusercontent.com/White11010/GRIN/main/scripts/install.ps1 | iex
+```
+
+To review the script before running it:
+
+```powershell
+irm https://raw.githubusercontent.com/White11010/GRIN/main/scripts/install.ps1 -OutFile install.ps1
+.\install.ps1
+```
+
+`irm | iex` downloads and runs code from GitHub (same idea as `curl | bash` on Unix). Use `-OutFile` if you prefer to inspect the script first.
+
+Open a **new** terminal after installation, then run `grin help`. If `irm` is blocked by policy or you are offline, use [Releases](https://github.com/White11010/GRIN/releases) or `cargo install grin`.
+
+### Prebuilt binaries (manual installs)
+
+See [**Releases**](https://github.com/White11010/GRIN/releases): each tag publishes archives for Linux and macOS:
 
 | Platform        | Archive pattern |
 |----------------|-----------------|
 | Linux x86_64   | `grin-<tag>-x86_64-unknown-linux-gnu.tar.gz` |
 | macOS x86_64   | `grin-<tag>-x86_64-apple-darwin.tar.gz` |
 | macOS Apple Silicon | `grin-<tag>-aarch64-apple-darwin.tar.gz` |
-| Windows x86_64 | `grin-<tag>-x86_64-pc-windows-msvc.zip` |
 
-Extract the `grin` (or `grin.exe`) binary and place it in a directory on your `PATH`.
+Extract the `grin` binary and place it in a directory on your `PATH`. On Windows, prefer the install script above; release zips are also on the Releases page.
 
 ### Build from source
 

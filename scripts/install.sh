@@ -108,7 +108,8 @@ case "$uname_s" in
     ;;
   *)
     echo "install.sh: unsupported operating system: $uname_s" >&2
-    echo "install.sh: use cargo install grin or download a Windows zip from GitHub Releases." >&2
+    echo "install.sh: on Windows, run: irm https://raw.githubusercontent.com/White11010/GRIN/main/scripts/install.ps1 | iex" >&2
+    echo "install.sh: or use: cargo install grin" >&2
     exit 1
     ;;
 esac
