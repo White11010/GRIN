@@ -119,6 +119,21 @@ function Get-LatestReleaseTag {
         try {
             $response = $request.GetResponse()
             try {
+                $status = $response.StatusCode
+                if ($redirectStatuses -contains $status) {
+                    $location = $response.Headers['Location']
+                    if (-not $location) {
+                        Write-Error 'install.ps1: could not parse latest release tag from GitHub redirect.'
+                    }
+                    if ($location -notmatch '^https?://') {
+                        $url = ([Uri]::new([Uri]$url, $location)).AbsoluteUri
+                    }
+                    else {
+                        $url = $location
+                    }
+                    continue
+                }
+
                 if ($response.ResponseUri) {
                     $url = $response.ResponseUri.AbsoluteUri
                 }
