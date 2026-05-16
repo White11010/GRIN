@@ -62,10 +62,10 @@ if (-not [Environment]::Is64BitOperatingSystem) {
 $arch = [Environment]::GetEnvironmentVariable('PROCESSOR_ARCHITECTURE')
 $archWoW = [Environment]::GetEnvironmentVariable('PROCESSOR_ARCHITEW6432')
 if ($arch -eq 'ARM64' -or $archWoW -eq 'ARM64') {
-    Write-Error @(
+    Write-Error ( @(
         'install.ps1: no prebuilt Windows ARM64 archive in this release channel yet.',
         'install.ps1: install with: cargo install grin'
-    ) -join "`n"
+    ) -join "`n" )
 }
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -96,10 +96,10 @@ if (-not $Version) {
     }
     catch {
         $detail = Get-WebErrorDetail -ErrorRecord $_
-        Write-Error @(
+        Write-Error ( @(
             "install.ps1: failed to fetch latest release metadata ($detail).",
             'install.ps1: set a tag manually, e.g. $env:GRIN_INSTALL_VERSION = ''v0.1.2'', then re-run.'
-        ) -join "`n"
+        ) -join "`n" )
     }
     $Version = $release.tag_name
     if (-not $Version) {
