@@ -10,6 +10,7 @@ DEFAULT_REPO="White11010/GRIN"
 REPO="${GRIN_INSTALL_REPO:-$DEFAULT_REPO}"
 VERSION=""
 BIN_DIR="${GRIN_INSTALL_DIR:-$HOME/.local/bin}"
+UPDATE_PATH=1
 
 usage() {
   cat <<'EOF'
@@ -22,6 +23,7 @@ Options:
   --version, -v   Release tag (e.g. v0.1.0). Default: latest GitHub release.
   --bin-dir, -b   Directory to install the binary into. Default: $HOME/.local/bin
   --repo          GitHub repository as owner/name. Default: White11010/GRIN
+  --no-path       Do not update shell startup files (PATH)
   -h, --help      Show this help.
 
 Environment:
@@ -60,6 +62,10 @@ while [[ $# -gt 0 ]]; do
       fi
       shift 2
       ;;
+    --no-path)
+      UPDATE_PATH=0
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -97,6 +103,120 @@ get_latest_release_tag() {
 
   echo "install.sh: could not parse latest release tag from GitHub redirect." >&2
   exit 1
+}
+
+GRIN_PATH_MARKER="# Added by GRIN install script"
+
+resolve_bin_dir_full() {
+  mkdir -p "$1"
+  (cd "$1" && pwd -P)
+}
+
+path_configured_in_file() {
+  local file="$1"
+  local bin_dir_full="$2"
+  [[ -f "$file" ]] || return 1
+  grep -qF "$GRIN_PATH_MARKER" "$file" 2>/dev/null && grep -qF "$bin_dir_full" "$file" 2>/dev/null
+}
+
+append_path_to_file() {
+  local file="$1"
+  local bin_dir_full="$2"
+
+  if path_configured_in_file "$file" "$bin_dir_full"; then
+    return 0
+  fi
+
+  {
+    echo ""
+    echo "$GRIN_PATH_MARKER"
+    echo "export PATH=\"${bin_dir_full}:\$PATH\""
+  } >>"$file"
+  echo "install.sh: updated ${file}" >&2
+}
+
+shell_startup_candidates() {
+  local uname_s="$1"
+  local -a files=()
+
+  case "$uname_s" in
+    Darwin)
+      files+=("$HOME/.zshrc")
+      if [[ -f "$HOME/.bash_profile" ]]; then
+        files+=("$HOME/.bash_profile")
+      fi
+      ;;
+    Linux)
+      if [[ -f "$HOME/.bashrc" ]]; then
+        files+=("$HOME/.bashrc")
+      elif [[ -f "$HOME/.bash_profile" ]]; then
+        files+=("$HOME/.bash_profile")
+      fi
+      if [[ -f "$HOME/.profile" ]]; then
+        files+=("$HOME/.profile")
+      fi
+      if [[ -f "$HOME/.zshrc" ]]; then
+        files+=("$HOME/.zshrc")
+      fi
+      ;;
+  esac
+
+  printf '%s\n' "${files[@]}"
+}
+
+ensure_shell_path() {
+  local bin_dir_full="$1"
+  local uname_s="$2"
+  local login_shell=""
+  local -a candidates=()
+  local file
+  local updated=0
+
+  login_shell="$(basename "${SHELL:-}")"
+
+  while IFS= read -r file; do
+    [[ -n "$file" ]] && candidates+=("$file")
+  done < <(shell_startup_candidates "$uname_s")
+
+  if [[ ${#candidates[@]} -eq 0 ]]; then
+    case "$uname_s" in
+      Darwin)
+        if [[ "$login_shell" == "bash" ]]; then
+          candidates=("$HOME/.bash_profile")
+        else
+          candidates=("$HOME/.zshrc")
+        fi
+        ;;
+      Linux)
+        candidates=("$HOME/.profile")
+        ;;
+    esac
+  fi
+
+  for file in "${candidates[@]}"; do
+    if [[ ! -f "$file" ]] && [[ "$file" == "$HOME/.zshrc" || "$file" == "$HOME/.profile" ]]; then
+      : >"$file"
+    fi
+    if [[ -f "$file" ]]; then
+      if ! path_configured_in_file "$file" "$bin_dir_full"; then
+        append_path_to_file "$file" "$bin_dir_full"
+        updated=1
+      fi
+    fi
+  done
+
+  if [[ "$updated" -eq 0 ]]; then
+    local already=0
+    for file in "${candidates[@]}"; do
+      if path_configured_in_file "$file" "$bin_dir_full"; then
+        already=1
+        break
+      fi
+    done
+    if [[ "$already" -eq 1 ]]; then
+      echo "install.sh: ${bin_dir_full} is already on PATH in your shell startup files." >&2
+    fi
+  fi
 }
 
 uname_s="$(uname -s)"
@@ -184,5 +304,19 @@ fi
 
 install -m 0755 "$binary" "${BIN_DIR}/grin"
 
-echo "install.sh: installed to ${BIN_DIR}/grin" >&2
-echo "install.sh: ensure ${BIN_DIR} is on your PATH, then run: grin help" >&2
+BIN_DIR_FULL="$(resolve_bin_dir_full "$BIN_DIR")"
+
+if [[ "$UPDATE_PATH" -eq 1 ]]; then
+  ensure_shell_path "$BIN_DIR_FULL" "$uname_s"
+fi
+
+echo "install.sh: installed to ${BIN_DIR_FULL}/grin" >&2
+echo "" >&2
+echo "install.sh: Run this in the current terminal to use grin immediately:" >&2
+echo "  export PATH=\"${BIN_DIR_FULL}:\$PATH\"" >&2
+if [[ "$UPDATE_PATH" -eq 1 ]]; then
+  echo "install.sh: New terminals load PATH from your shell startup files automatically." >&2
+else
+  echo "install.sh: ensure ${BIN_DIR_FULL} is on your PATH." >&2
+fi
+echo "install.sh: Then run: grin help" >&2

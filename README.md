@@ -97,11 +97,14 @@ GRIN_ASCII=1 grin timeline
 
 ### Install script
 
-**Linux / macOS** — latest release into `~/.local/bin` (override with `--bin-dir`):
+**Linux / macOS** — latest release into `~/.local/bin`, adds it to your shell startup files when needed (override with `--bin-dir`):
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/White11010/GRIN/main/scripts/install.sh | bash
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/White11010/GRIN/main/scripts/install.sh | bash \
+  && export PATH="$HOME/.local/bin:$PATH"
 ```
+
+The `export` line makes `grin` work in the **current** terminal right away; new terminals pick up `PATH` from `~/.zshrc` (macOS) or `~/.profile` / `~/.bashrc` (Linux) automatically.
 
 **Windows** — latest release into `%USERPROFILE%\.local\bin` (adds to user `PATH` when needed):
 
@@ -118,7 +121,7 @@ irm https://raw.githubusercontent.com/White11010/GRIN/main/scripts/install.ps1 -
 .\install.ps1
 ```
 
-Open a **new** terminal after install, then run `grin help`.
+If you used a custom install directory, run the `export PATH=…` line printed at the end of `install.sh` (with your path), or open a **new** terminal on Windows after install. Then run `grin help`.
 
 ### Prebuilt binaries
 
