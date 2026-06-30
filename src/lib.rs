@@ -14,6 +14,65 @@ pub enum Command {
     Help,
 }
 
+/// User-facing command names (keep in sync with `help_text` and `Command::try_from`).
+const COMMAND_NAMES: &[&str] = &["timeline", "who", "churn", "help"];
+
+fn levenshtein_distance(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let (m, n) = (a.len(), b.len());
+    if m == 0 {
+        return n;
+    }
+    if n == 0 {
+        return m;
+    }
+
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut curr = vec![0; n + 1];
+
+    for (i, ca) in a.iter().enumerate() {
+        curr[0] = i + 1;
+        for (j, cb) in b.iter().enumerate() {
+            let cost = usize::from(ca != cb);
+            curr[j + 1] = (prev[j + 1] + 1).min(curr[j] + 1).min(prev[j] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[n]
+}
+
+/// Suggests the closest command name for a typo (git-style "did you mean").
+fn suggest_command(typo: &str) -> Option<&'static str> {
+    let typo = typo.to_ascii_lowercase();
+    let mut best: Option<(&str, usize)> = None;
+
+    for &name in COMMAND_NAMES {
+        let distance = levenshtein_distance(&typo, name);
+        let threshold = name.len().saturating_sub(1).max(1);
+        if distance > threshold {
+            continue;
+        }
+        match best {
+            None => best = Some((name, distance)),
+            Some((_, best_dist)) if distance < best_dist => best = Some((name, distance)),
+            _ => {}
+        }
+    }
+
+    best.map(|(name, _)| name)
+}
+
+fn unknown_command_message(typo: &str) -> String {
+    let program = program_invocation();
+    let mut message = format!("unknown command '{typo}'. Run `{program} help` for usage.");
+    if let Some(similar) = suggest_command(typo) {
+        message.push_str("\n\nThe most similar command is\n\t");
+        message.push_str(similar);
+    }
+    message
+}
+
 impl TryFrom<&str> for Command {
     type Error = String;
 
@@ -23,10 +82,7 @@ impl TryFrom<&str> for Command {
             "who" => Ok(Command::Who),
             "churn" => Ok(Command::Churn),
             "help" | "--help" | "-h" => Ok(Command::Help),
-            other => Err(format!(
-                "unknown command '{other}'. Run `{} help` for usage.",
-                program_invocation()
-            )),
+            other => Err(unknown_command_message(other)),
         }
     }
 }
@@ -406,5 +462,28 @@ mod tests {
         assert!(text.contains("--ascii"));
         assert!(text.contains("NO_COLOR"));
         assert!(text.contains("GRIN_ASCII"));
+    }
+
+    #[test]
+    fn unknown_command_suggests_similar_name() {
+        let args = vec!["grin".into(), "timline".into()];
+        let err = Config::build(&args).err().unwrap();
+        assert!(err.contains("unknown command 'timline'"));
+        assert!(err.contains("The most similar command is"));
+        assert!(err.contains("timeline"));
+    }
+
+    #[test]
+    fn unknown_command_no_suggestion_when_too_different() {
+        let args = vec!["grin".into(), "zzzzzz".into()];
+        let err = Config::build(&args).err().unwrap();
+        assert!(err.contains("unknown command 'zzzzzz'"));
+        assert!(!err.contains("The most similar command is"));
+    }
+
+    #[test]
+    fn suggest_command_matches_git_style_typos() {
+        assert_eq!(suggest_command("churj"), Some("churn"));
+        assert_eq!(suggest_command("wo"), Some("who"));
     }
 }
